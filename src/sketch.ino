@@ -1,17 +1,18 @@
 #include "AD9850.h"
 #include "Keypad.h"
 #include "State.h"
+#include "serLCD.h"
 
 #define DEFAULT_HZ 1000
 long currentFrequency = DEFAULT_HZ;
 long newFrequency = 0;
 
 
-/* AD9850 vfo; */
-#define W_CLK 2    // Pin 8 - connect to AD9850 module word load clock pin (CLK)
-#define FQ_UD 3    // Pin 9 - connect to freq update pin (FQ)
-#define DATA  4    // Pin 10 - connect to serial data load pin (DATA)
-#define RESET 5    // Pin 11 - connect to reset pin (RST).
+AD9850 vfo; 
+#define W_CLK 2
+#define FQ_UD 3
+#define DATA  4
+#define RESET 5
 
 State notOscillating(notOscillatingEnter, respondToOscillateKeys);
 State oscillating(oscillatingEnter, respondToOscillateKeys);
@@ -30,10 +31,15 @@ char keys[4][3] = {
 };
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, 4, 3);
 
+serLCD lcd(13);
+
+
 void setup() {
   Serial.begin(9600);
   Serial.println("starting setup");
-  /* vfo.setup(W_CLK, FQ_UD, DATA, RESET); */
+  vfo.setup(W_CLK, FQ_UD, DATA, RESET); 
+  analogWrite(A0, 128);
+
 
 
   keypad.addEventListener(keypadEvent);
@@ -119,7 +125,7 @@ void notOscillatingEnter() {
 
 void oscillatingEnter() {
   Serial.println("entering oscillate on");
-  //vfo.oscillate(currentFrequency);
+  vfo.oscillate(currentFrequency);
   updateLcd(currentFrequency);
 }
 
@@ -140,26 +146,26 @@ void frequencyInputEnter() {
 
 
 void updateLcd(long freq) {
-  Serial.println("-----------------");
+  lcd.clear();
   if(stateMachine.is(notOscillating)) {
-    Serial.print("( )");
+    lcd.print("(    ) ");
   }
   else if(stateMachine.is(oscillating)) {
-    Serial.print("(~)");
+    lcd.print("(v^v^) ");
   }
   printFrequency(freq);
 
   if(stateMachine.is(frequencyInput)) {
-    Serial.println("#-save");
+    lcd.print("#-save");
   }
   else {
-    Serial.println("  *-toggle #-freq");
+    lcd.print("*-toggle #-freq");
   }
-  Serial.println("-----------------");
 }
 
 void printFrequency(long freq) {
-  Serial.println(freq);
+  lcd.print(freq);
+  lcd.selectLine(2);
 }
 
 /* #################*/

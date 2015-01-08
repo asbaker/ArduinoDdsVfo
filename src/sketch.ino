@@ -1,45 +1,48 @@
 #include "AD9850.h"
 #include "Keypad.h"
+#include "State.h"
+#include "Helpers.h"
 
 #define DEFAULT_HZ 1000
 double currentFrequency = DEFAULT_HZ;
 double newFrequency = 0;
 
-/*
-States:
- * Not Oscillating
- * Oscillating
- * Frequency Input
-*/
 
-// TODO: Implement statemachine to control oscillator from keypad
+/* AD9850 vfo; */
+#define W_CLK 2    // Pin 8 - connect to AD9850 module word load clock pin (CLK)
+#define FQ_UD 3    // Pin 9 - connect to freq update pin (FQ)
+#define DATA  4    // Pin 10 - connect to serial data load pin (DATA)
+#define RESET 5    // Pin 11 - connect to reset pin (RST).
 
-#define STATE_OSC "oscillating"
-#define STATE_NOT_OSC "not oscillating"
-#define STATE_FREQ_IN "frequency input"
+State notOscillating(notOscillatingEnter, respondToOscillateKeys);
+State oscillating(oscillatingEnter, respondToOscillateKeys);
+State frequencyInput(frequencyInputEnter, respondToFrequencyKeys);;
+StateMachine stateMachine = StateMachine(notOscillating);
+
+Keypad keypad = setupKeypad(keypadEvent);
 
 
+void setup() {
+  Serial.begin(9600);
+  /* vfo.setup(W_CLK, FQ_UD, DATA, RESET); */
 
-void oscillateOnEnter() {
-  Serial.println("entering oscillate on");
 
-  updateLcd(currentFrequency);
-}
-void oscillateOnUpdate(char key) {
-  Serial.print("update for oscillate on");
-  respondToOscillateKeys(key);
+  Serial.println("done with setup");
 }
 
-
-void oscillateOffEnter() {
-  Serial.println("entering oscillate off");
-
-  updateLcd(currentFrequency);
+void loop() {
+  char key = keypad.getKey();
 }
-void oscillateOffUpdate(char key) {
-  Serial.print("update for oscillate off");
-  Serial.println(key);
-  respondToOscillateKeys(key);
+
+/* ########## KEYPAD INTERACTIONS ######### */
+
+void keypadEvent(KeypadEvent key){
+    if(keypad.getState() == PRESSED) {
+      Serial.print("key pressed: ");
+      Serial.println(key);
+
+      stateMachine.sendKey(key);
+    }
 }
 
 void respondToOscillateKeys(char key) {
@@ -47,107 +50,99 @@ void respondToOscillateKeys(char key) {
   Serial.println(key);
 
   if(key == '#') {
-    stateMachine.immediateTransitionTo(frequencyInput);
+    stateMachine.changeState(frequencyInput);
   }
   else if(key == '*') {
-    if(stateMachine.isInState(oscillateOn)) {
+    if(stateMachine.is(oscillating)) {
       Serial.println("is in state oscillate on");
-      stateMachine.immediateTransitionTo(oscillateOff);
+      stateMachine.changeState(notOscillating);
     }
-    else if(stateMachine.isInState(frequencyInput)) {
+    else if(stateMachine.is(frequencyInput)) {
       Serial.println("is in state frequency input");
-      stateMachine.immediateTransitionTo(oscillateOff);
+      stateMachine.changeState(notOscillating);
     }
     else {
       Serial.println("is in state oscillate on");
-      stateMachine.immediateTransitionTo(oscillateOn);
+      stateMachine.changeState(oscillating);
     }
   }
 }
 
+void respondToFrequencyKeys(char key) {
+  Serial.print("respondToFrequencyKeys: ");
+  Serial.println(key);
+
+  switch (key) {
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      newFrequency = newFrequency*10 + (int)key;
+      updateLcd(newFrequency);
+      break;
+    case '#':
+      currentFrequency = newFrequency;
+      stateMachine.changeState(notOscillating);
+      break;
+  }
+}
+
+/* ########################################## */
+
+
+/* ######## STATE MANAGEMENT #########*/
+
+void notOscillatingEnter() {
+  Serial.println("entering oscillate off");
+  /* vfo.stop(); */
+  updateLcd(currentFrequency);
+}
+
+void oscillatingEnter() {
+  Serial.println("entering oscillate on");
+  //vfo.oscillate(currentFrequency);
+  updateLcd(currentFrequency);
+}
 
 void frequencyInputEnter() {
   Serial.println("frequency input enter");
   newFrequency = 0;
   updateLcd(newFrequency);
 }
-void frequencyInputUpdate(char key) {
-  Serial.print("frequency input update");
-  Serial.println(key);
-}
+
+/* ################################## */
 
 
-void printFrequency(double freq) {
-  Serial.println(freq);
-}
+/* ######## LCD UPDATING ########### */
+  /* 1234567890123456 */
+  /* ( ) 14 070 000hz */
+  /* #-save           */
+  /* *-toggle #-freq  */
+
+
 void updateLcd(double freq) {
-  Serial.println("-------------------------");
-  Serial.print("Hz: ");
-  printFrequency(currentFrequency);
-
-  if(stateMachine.isInState(oscillateOff)) {
+  Serial.println("-----------------");
+  if(stateMachine.is(notOscillating)) {
     Serial.print("( )");
   }
-  else if(stateMachine.isInState(oscillateOn)) {
+  else if(stateMachine.is(oscillating)) {
     Serial.print("(~)");
   }
+  printFrequency(currentFrequency);
 
-  Serial.println("  *-toggle #-freq");
-  Serial.println("-------------------------");
-}
-
-
-
-
-
-#define W_CLK 2       // Pin 8 - connect to AD9850 module word load clock pin (CLK)
-#define FQ_UD 3       // Pin 9 - connect to freq update pin (FQ)
-#define DATA 4       // Pin 10 - connect to serial data load pin (DATA)
-#define RESET 5      // Pin 11 - connect to reset pin (RST).
-
-#define ROWS 4
-#define COLS 3
-byte rowPins[ROWS] = {6, 7, 8, 9};
-byte colPins[COLS] = {10, 11, 12};
-
-char keys[ROWS][COLS] = {
-    {'1','2','3'},
-    {'4','5','6'},
-    {'7','8','9'},
-    {'*','0','#'}
-};
-Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
-
-AD9850 vfo;
-
-void setup() {
-  Serial.begin(9600); 
-  vfo.setup(W_CLK, FQ_UD, DATA, RESET);
-
-  keypad.addEventListener(keypadEvent);
-  Serial.println("done with setup");
-}
- 
-void loop() {
- // vfo.sendFrequency(10.e6);
-  //vfo.sendFrequency(1000);  // freq
-  if(stateMachine.isInState(noop)) {
-    Serial.println("tranisitioning to oscillate off");
-    stateMachine.immediateTransitionTo(oscillateOff);
+  if(stateMachine.is(frequencyInput)) {
+    Serial.println("#-save");
   }
-
-  char key = keypad.getKey();
-  // stateMachine.update();
+  else {
+    Serial.println("  *-toggle #-freq");
+  }
+  Serial.println("-----------------");
 }
 
-// Taking care of some special events.
-void keypadEvent(KeypadEvent key){
-    lastKeyPress = key;
-
-    if(keypad.getState() == PRESSED) {
-      Serial.print("last key pressed: ");
-      Serial.println(lastKeyPress);
-
-      stateMachine.update();
-    }
-}
+/* #################*/

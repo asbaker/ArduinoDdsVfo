@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "AD9850.h"
-#define pulseHigh(pin) {digitalWrite(pin, HIGH); digitalWrite(pin, LOW); }
+#define pulse(pin) {digitalWrite(pin, HIGH); digitalWrite(pin, LOW); }
+#define REFERENCE_CLOCK 125e6 // 125 MHz
 
 void AD9850::setup(int w_clk, int fq_ud, int data, int reset) {
   W_CLK = w_clk;
@@ -8,34 +9,44 @@ void AD9850::setup(int w_clk, int fq_ud, int data, int reset) {
   DATA = data;
   RESET = reset;
 
-  // configure arduino data pins for output
   pinMode(FQ_UD, OUTPUT);
   pinMode(W_CLK, OUTPUT);
   pinMode(DATA, OUTPUT);
   pinMode(RESET, OUTPUT);
 
-  pulseHigh(RESET);
-  pulseHigh(W_CLK);
-  pulseHigh(FQ_UD);  // this pulse enables serial mode - Datasheet page 12 figure 10
+  pulse(RESET);
+  pulse(W_CLK);
+  pulse(FQ_UD);
 }
 
- // frequency calc from datasheet page 8 = <sys clock> * <frequency tuning word>/2^32
-void AD9850::sendFrequency(double frequency) {
-  int32_t freq = frequency * 4294967295/125000000;  // note 125 MHz clock on 9850
-  for (int b=0; b<4; b++, freq>>=8) {
-    tfr_byte(freq & 0xFF);
+void AD9850::oscillate(double frequency) {
+  // defined in datasheet pg. 8 as
+  // f_out = (deltaPhase * CLKIN)/2^32
+  unsigned long deltaPhase = frequency * pow(2,32) / REFERENCE_CLOCK;
+
+  // 40 bit total serial message
+  // 32 bits of frequency LSB first
+
+  for (int i=0; i<4; i++, deltaPhase>>=8) {
+    shiftOut(DATA, W_CLK, LSBFIRST, deltaPhase & 0xFF);
   }
-  tfr_byte(0x000);   // Final control byte, all 0 for 9850 chip
-  pulseHigh(FQ_UD);  // Done!  Should see output
+
+  // internal test, powerdown and phase bits
+  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
+  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
+
+  pulse(FQ_UD);
 }
 
+void AD9850::stop() {
 
+  // 2 bits of 0 for internal test codes
+  // 1 bit for power down
+  // 5 bits for phase LSB first
+  // 0010 0000
 
-void AD9850::tfr_byte(byte data)
-{
-  for (int i=0; i<8; i++, data>>=1) {
-    digitalWrite(DATA, data & 0x01);
-    pulseHigh(W_CLK);   //after each bit sent, CLK is pulsed high
-  }
+  pulse(FQ_UD);
+  shiftOut(DATA, W_CLK, LSBFIRST, B0100);
+  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
+  pulse(FQ_UD);
 }
- 

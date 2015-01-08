@@ -19,7 +19,6 @@ class State {
 
 class StateMachine {
   public:
-    StateMachine(State& state);
     bool is(State& state);
     void sendKey(char key);
     void changeState(State &state);

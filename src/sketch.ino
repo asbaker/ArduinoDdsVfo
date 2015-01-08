@@ -1,11 +1,10 @@
 #include "AD9850.h"
 #include "Keypad.h"
 #include "State.h"
-#include "Helpers.h"
 
 #define DEFAULT_HZ 1000
-double currentFrequency = DEFAULT_HZ;
-double newFrequency = 0;
+long currentFrequency = DEFAULT_HZ;
+long newFrequency = 0;
 
 
 /* AD9850 vfo; */
@@ -17,16 +16,29 @@ double newFrequency = 0;
 State notOscillating(notOscillatingEnter, respondToOscillateKeys);
 State oscillating(oscillatingEnter, respondToOscillateKeys);
 State frequencyInput(frequencyInputEnter, respondToFrequencyKeys);;
-StateMachine stateMachine = StateMachine(notOscillating);
+StateMachine stateMachine = StateMachine();
 
-Keypad keypad = setupKeypad(keypadEvent);
 
+byte rowPins[4] = {6, 7, 8, 9};
+byte colPins[3] = {10, 11, 12};
+
+char keys[4][3] = {
+    {'1','2','3'},
+    {'4','5','6'},
+    {'7','8','9'},
+    {'*','0','#'}
+};
+Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, 4, 3);
 
 void setup() {
   Serial.begin(9600);
+  Serial.println("starting setup");
   /* vfo.setup(W_CLK, FQ_UD, DATA, RESET); */
 
 
+  keypad.addEventListener(keypadEvent);
+
+  stateMachine.changeState(notOscillating);
   Serial.println("done with setup");
 }
 
@@ -37,12 +49,13 @@ void loop() {
 /* ########## KEYPAD INTERACTIONS ######### */
 
 void keypadEvent(KeypadEvent key){
-    if(keypad.getState() == PRESSED) {
-      Serial.print("key pressed: ");
-      Serial.println(key);
+  Serial.println("keypad event");
+  if(keypad.getState() == PRESSED) {
+    Serial.print("key pressed: ");
+    Serial.println(key);
 
-      stateMachine.sendKey(key);
-    }
+    stateMachine.sendKey(key);
+  }
 }
 
 void respondToOscillateKeys(char key) {
@@ -83,7 +96,7 @@ void respondToFrequencyKeys(char key) {
     case '7':
     case '8':
     case '9':
-      newFrequency = newFrequency*10 + (int)key;
+      newFrequency = newFrequency*10 + (int)key - (int)'0';
       updateLcd(newFrequency);
       break;
     case '#':
@@ -126,7 +139,7 @@ void frequencyInputEnter() {
   /* *-toggle #-freq  */
 
 
-void updateLcd(double freq) {
+void updateLcd(long freq) {
   Serial.println("-----------------");
   if(stateMachine.is(notOscillating)) {
     Serial.print("( )");
@@ -134,7 +147,7 @@ void updateLcd(double freq) {
   else if(stateMachine.is(oscillating)) {
     Serial.print("(~)");
   }
-  printFrequency(currentFrequency);
+  printFrequency(freq);
 
   if(stateMachine.is(frequencyInput)) {
     Serial.println("#-save");
@@ -143,6 +156,10 @@ void updateLcd(double freq) {
     Serial.println("  *-toggle #-freq");
   }
   Serial.println("-----------------");
+}
+
+void printFrequency(long freq) {
+  Serial.println(freq);
 }
 
 /* #################*/

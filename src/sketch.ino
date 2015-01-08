@@ -119,7 +119,7 @@ void respondToFrequencyKeys(char key) {
 
 void notOscillatingEnter() {
   Serial.println("entering oscillate off");
-  /* vfo.stop(); */
+  vfo.stop(); 
   updateLcd(currentFrequency);
 }
 

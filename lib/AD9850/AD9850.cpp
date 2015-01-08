@@ -32,21 +32,18 @@ void AD9850::oscillate(double frequency) {
   }
 
   // internal test, powerdown and phase bits
-  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
-  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
+  shiftOut(DATA, W_CLK, LSBFIRST, B00000000);
 
   pulse(FQ_UD);
 }
 
 void AD9850::stop() {
-
   // 2 bits of 0 for internal test codes
   // 1 bit for power down
   // 5 bits for phase LSB first
   // 0010 0000
 
   pulse(FQ_UD);
-  shiftOut(DATA, W_CLK, LSBFIRST, B0100);
-  shiftOut(DATA, W_CLK, LSBFIRST, B0000);
+  shiftOut(DATA, W_CLK, LSBFIRST, B00000100);
   pulse(FQ_UD);
 }

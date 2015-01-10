@@ -14,7 +14,9 @@ void State::start() {
 
 void State::sendKey(char key) {
   // Serial.println("invoking send key");
-  _keyFn(key);
+  if(_keyFn != NULL) {
+    _keyFn(key);
+  }
 }
 
 bool StateMachine::is(State& state) {

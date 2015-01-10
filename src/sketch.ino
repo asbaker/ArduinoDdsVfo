@@ -2,6 +2,7 @@
 #include "Keypad.h"
 #include "State.h"
 #include "serLCD.h"
+#include "Button.h"
 
 #define DEFAULT_HZ 1000
 long currentFrequency = DEFAULT_HZ;
@@ -14,8 +15,8 @@ AD9850 vfo;
 #define DATA  4
 #define RESET 5
 
-State notOscillating(notOscillatingEnter, respondToOscillateKeys);
-State oscillating(oscillatingEnter, respondToOscillateKeys);
+State notOscillating(notOscillatingEnter, NULL);
+State oscillating(oscillatingEnter, NULL);
 State frequencyInput(frequencyInputEnter, respondToFrequencyKeys);;
 StateMachine stateMachine = StateMachine();
 
@@ -34,15 +35,18 @@ Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, 4, 3);
 serLCD lcd(13);
 
 
+Button oscillateButton = Button(A0, BUTTON_PULLUP_INTERNAL);
+Button frequencyButton = Button(A1, BUTTON_PULLUP_INTERNAL);
+
 void setup() {
   Serial.begin(9600);
   Serial.println("starting setup");
   vfo.setup(W_CLK, FQ_UD, DATA, RESET); 
-  analogWrite(A0, 128);
-
 
 
   keypad.addEventListener(keypadEvent);
+  oscillateButton.clickHandler(oscillatePressed);
+  frequencyButton.clickHandler(frequencyPressed);
 
   stateMachine.changeState(notOscillating);
   Serial.println("done with setup");
@@ -50,6 +54,22 @@ void setup() {
 
 void loop() {
   char key = keypad.getKey();
+
+  oscillateButton.isPressed();
+  frequencyButton.isPressed();
+}
+
+void oscillatePressed(Button& button) {
+  if(stateMachine.is(notOscillating)) {
+    stateMachine.changeState(oscillating);
+  }
+  else {
+    stateMachine.changeState(notOscillating);
+  }
+}
+
+void frequencyPressed(Button& button) {
+  stateMachine.changeState(frequencyInput);
 }
 
 /* ########## KEYPAD INTERACTIONS ######### */
@@ -61,29 +81,6 @@ void keypadEvent(KeypadEvent key){
     Serial.println(key);
 
     stateMachine.sendKey(key);
-  }
-}
-
-void respondToOscillateKeys(char key) {
-  Serial.print("respondToOscillateKeys: ");
-  Serial.println(key);
-
-  if(key == '#') {
-    stateMachine.changeState(frequencyInput);
-  }
-  else if(key == '*') {
-    if(stateMachine.is(oscillating)) {
-      Serial.println("is in state oscillate on");
-      stateMachine.changeState(notOscillating);
-    }
-    else if(stateMachine.is(frequencyInput)) {
-      Serial.println("is in state frequency input");
-      stateMachine.changeState(notOscillating);
-    }
-    else {
-      Serial.println("is in state oscillate on");
-      stateMachine.changeState(oscillating);
-    }
   }
 }
 
@@ -139,11 +136,6 @@ void frequencyInputEnter() {
 
 
 /* ######## LCD UPDATING ########### */
-  /* 1234567890123456 */
-  /* ( ) 14 070 000hz */
-  /* #-save           */
-  /* *-toggle #-freq  */
-
 
 void updateLcd(long freq) {
   lcd.clear();

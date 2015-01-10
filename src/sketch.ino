@@ -151,7 +151,7 @@ void updateLcd(long freq) {
     lcd.print("#-save");
   }
   else {
-    lcd.print("*-toggle #-freq");
+    lcd.print("osc hz");
   }
 }
 

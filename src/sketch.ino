@@ -37,8 +37,8 @@ State autoSweep(autoSweepEnter, NULL);
 StateMachine stateMachine = StateMachine();
 
 
-byte rowPins[4] = {6, 7, 8, 9};
-byte colPins[3] = {10, 11, 12};
+byte rowPins[4] = {12, 11, 10, 9};
+byte colPins[3] = {8, 7, 6};
 
 char keys[4][3] = {
     {'1','2','3'},

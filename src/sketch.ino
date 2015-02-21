@@ -3,10 +3,20 @@
 #include "State.h"
 #include "serLCD.h"
 #include "Button.h"
+#include "ClickEncoder.h"
+#include "TimerOne.h"
+
+ClickEncoder *encoder;
+int16_t last, value;
+
+void timerIsr() {
+  encoder->service();
+}
 
 #define DEFAULT_HZ 1000
 long currentFrequency = DEFAULT_HZ;
 long newFrequency = 0;
+long multiplier = 1;
 
 long startFrequency = 0;
 long stopFrequency = 0;
@@ -32,6 +42,7 @@ State startFrequencyInput(startFrequencyEnter, respondToStartKeys);
 State endFrequencyInput(stopFrequencyEnter, respondToStopKeys);
 State timeInput(timeEnter, respondToTimeKeys);
 State autoSweep(autoSweepEnter, NULL);
+State manualSweep(manualSweepEnter, NULL);
 
 
 StateMachine stateMachine = StateMachine();
@@ -52,6 +63,7 @@ Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, 4, 3);
 Button oscillateButton = Button(A0, BUTTON_PULLUP_INTERNAL);
 Button frequencyButton = Button(A1, BUTTON_PULLUP_INTERNAL);
 Button autoSweepButton = Button(A2, BUTTON_PULLUP_INTERNAL);
+Button manualSweepButton = Button(A3, BUTTON_PULLUP_INTERNAL);
 
 void setup() {
   Serial.begin(9600);
@@ -63,8 +75,13 @@ void setup() {
   oscillateButton.clickHandler(oscillatePressed);
   frequencyButton.clickHandler(frequencyPressed);
   autoSweepButton.clickHandler(autoSweepPressed);
+  manualSweepButton.clickHandler(manualSweepPressed);
 
   stateMachine.changeState(notOscillating);
+
+  encoder = new ClickEncoder(A5, A4, A7, 4);
+  Timer1.initialize(1000);
+  Timer1.attachInterrupt(timerIsr);
 }
 
 void loop() {
@@ -73,10 +90,14 @@ void loop() {
   oscillateButton.isPressed();
   frequencyButton.isPressed();
   autoSweepButton.isPressed();
+  manualSweepButton.isPressed();
 
 
   if(stateMachine.is(autoSweep)) {
     updateAutoSweep();
+  }
+  if(stateMachine.is(manualSweep)) {
+    respondToSpin(encoder->getValue());
   }
 }
 
@@ -116,6 +137,10 @@ void frequencyPressed(Button& button) {
 
 void autoSweepPressed(Button& button) {
   stateMachine.changeState(startFrequencyInput);
+}
+
+void manualSweepPressed(Button& button) {
+  stateMachine.changeState(manualSweep);
 }
 
 
@@ -219,6 +244,38 @@ int getKeyInt(char key) {
   return (int)key - (int)'0';
 }
 
+void respondToSpin(int diff) {
+  if(diff != 0) {
+    currentFrequency = currentFrequency+(diff*multiplier);
+    vfo.oscillate(currentFrequency);
+
+    updateManualSweepLcd(currentFrequency);
+  }
+
+  ClickEncoder::Button b = encoder->getButton();
+  if (b != ClickEncoder::Open) {
+    switch (b) {
+      case ClickEncoder::Pressed:
+        break;
+      case ClickEncoder::Held:
+        break;
+      case ClickEncoder::Released:
+        break;
+      case ClickEncoder::Clicked:
+        if(multiplier==10000000) {
+          multiplier = 1;
+        }
+        else {
+          multiplier*=10;
+        }
+        updateManualSweepLcd(currentFrequency);
+        break;
+      case ClickEncoder::DoubleClicked:
+        break;
+    }
+  }
+}
+
 /* ########################################## */
 
 
@@ -259,6 +316,11 @@ void autoSweepEnter() {
   lastMillis = millis();
 }
 
+void manualSweepEnter() {
+  updateManualSweepLcd(currentFrequency);
+  vfo.oscillate(currentFrequency);
+}
+
 
 /* ################################## */
 
@@ -280,9 +342,6 @@ void updateLcd(long freq) {
   }
   else if(stateMachine.is(autoSweep)) {
     lcd.print("Auto Sweep...");
-  }
-  else {
-    lcd.print("osc hz sweep");
   }
 }
 
@@ -310,6 +369,14 @@ void updateTimeLcd() {
   lcd.selectLine(2);
 
   lcd.print("Seconds   #-save");
+}
+
+void updateManualSweepLcd(long currentFrequency) {
+  lcd.clear();
+  lcd.print("(v^v^) ");
+  printFrequency(currentFrequency);
+  lcd.print("Sweep * ");
+  lcd.print(multiplier);
 }
 
 /* #################*/

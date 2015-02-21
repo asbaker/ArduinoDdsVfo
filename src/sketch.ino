@@ -140,7 +140,19 @@ void autoSweepPressed(Button& button) {
 }
 
 void manualSweepPressed(Button& button) {
-  stateMachine.changeState(manualSweep);
+  if(stateMachine.is(manualSweep)) {
+    if(multiplier==10000000) {
+      multiplier = 1;
+    }
+    else {
+      multiplier*=10;
+    }
+    updateManualSweepLcd(currentFrequency);
+  }
+  else {
+    stateMachine.changeState(manualSweep);
+  }
+
 }
 
 
@@ -252,28 +264,6 @@ void respondToSpin(int diff) {
     updateManualSweepLcd(currentFrequency);
   }
 
-  ClickEncoder::Button b = encoder->getButton();
-  if (b != ClickEncoder::Open) {
-    switch (b) {
-      case ClickEncoder::Pressed:
-        break;
-      case ClickEncoder::Held:
-        break;
-      case ClickEncoder::Released:
-        break;
-      case ClickEncoder::Clicked:
-        if(multiplier==10000000) {
-          multiplier = 1;
-        }
-        else {
-          multiplier*=10;
-        }
-        updateManualSweepLcd(currentFrequency);
-        break;
-      case ClickEncoder::DoubleClicked:
-        break;
-    }
-  }
 }
 
 /* ########################################## */

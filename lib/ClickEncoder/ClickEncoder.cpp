@@ -52,7 +52,7 @@ ClickEncoder::ClickEncoder(uint8_t A, uint8_t B, uint8_t BTN, uint8_t stepsPerNo
   uint8_t configType = (pinsActive == LOW) ? INPUT_PULLUP : INPUT;
   pinMode(pinA, configType);
   pinMode(pinB, configType);
-  // pinMode(pinBTN, configType);
+  pinMode(pinBTN, configType);
   
   if (digitalRead(pinA) == pinsActive) {
     last = 3;
@@ -134,15 +134,15 @@ void ClickEncoder::service(void)
       && (now - lastButtonCheck) >= ENC_BUTTONINTERVAL) // checking button is sufficient every 10-30ms
   { 
     lastButtonCheck = now;
-
-    if (analogRead(pinBTN) == 0) { // key is down
+    
+    if (digitalRead(pinBTN) == pinsActive) { // key is down
       keyDownTicks++;
       if (keyDownTicks > (ENC_HOLDTIME / ENC_BUTTONINTERVAL)) {
         button = Held;
       }
     }
 
-    if (analogRead(pinBTN) > 0) { // key is now up
+    if (digitalRead(pinBTN) == !pinsActive) { // key is now up
       if (keyDownTicks /*> ENC_BUTTONINTERVAL*/) {
         if (button == Held) {
           button = Released;
